@@ -1,5 +1,15 @@
 data:
 
+  minio:
+    bucket_name : superionic-ai
+    results: "superionic_ai/data/json/data.json"
+    processed_save_path: "superionic_ai/data/processed_cifs"
+    relaxed_save_path: "superionic_ai/data/relaxed_cifs"
+    raw_save_path: "superionic_ai/data/raw_cifs"
+    md_traj_save_path: "superionic_ai/data/md_logs"
+    starter_materials: "/home/nawaf/workflows/superionic_ai_flyte/src/data/start_mat.yaml"
+
+
   path:
     results: "/home/nawaf/workflows/superionic_ai/src/data/json/data.json"
     starter_materials: "/home/nawaf/workflows/superionic_ai/src/data/start_mat.yaml"

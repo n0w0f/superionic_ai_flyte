@@ -5,10 +5,12 @@ import os
 from typing import List, Tuple
 
 from utils.read_yaml import read_material_compositions
-from utils.manage_files import substitute_element, create_folders_with_names
+from utils.manage_files import substitute_element
 
 from data_prep.pymatgen_actions import replace_atom_in_cif_folder
 from data_prep.mp_query import mp_query_id
+
+from minio_lake.client import create_folders_minio
 
 
 
@@ -23,16 +25,16 @@ def prepare_folders(config : dict, config_substi : dict )-> Tuple[List[str], Lis
 
 
     # Create folders for raw CIFs
-    create_folders_with_names(materials, config['raw_save_path'])
+    create_folders_minio(config['bucket_name'], materials, config['raw_save_path'])
 
     # Create folders for processed CIFs
-    create_folders_with_names(substituted_materials, config['processed_save_path'])
+    create_folders_minio(config['bucket_name'], substituted_materials, config['processed_save_path'])
 
     # Create folders for relaxed CIFs
-    create_folders_with_names(substituted_materials, config['relaxed_save_path'])
+    create_folders_minio(config['bucket_name'], substituted_materials, config['relaxed_save_path'])
 
     # Create folders for md trajectories and logs
-    create_folders_with_names(substituted_materials, config['md_traj_save_path'])
+    create_folders_minio(config['bucket_name'], substituted_materials, config['md_traj_save_path'])
 
     return materials,substituted_materials
 

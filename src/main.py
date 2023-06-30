@@ -138,21 +138,21 @@ def workflow(cif_file : str,  config: dict ) -> material_class:
 
 if __name__ == "__main__":
         
-    materials,substituted_materials = prepare_folders(config_data['data']['path'] , config_data['data']['substitution'] )
+    materials,substituted_materials = prepare_folders(config_data['data']['minio'] , config_data['data']['substitution'] )
 
-    raw_cif_paths , substituted_cif_paths = substitute_materials(materials,substituted_materials,config_data['data']['path'] , config_data['data']['substitution'])
+    # raw_cif_paths , substituted_cif_paths = substitute_materials(materials,substituted_materials,config_data['data']['path'] , config_data['data']['substitution'])
 
-    print(raw_cif_paths)
-    print(substituted_cif_paths)
+    # print(raw_cif_paths)
+    # print(substituted_cif_paths)
 
 
-    results: List[material_class] = []
-    for cif_file in substituted_cif_paths:
+    # results: List[material_class] = []
+    # for cif_file in substituted_cif_paths:
 
-        workflow_result =  workflow(cif_file, config_data)
-        results.append(workflow_result)
+    #     workflow_result =  workflow(cif_file, config_data)
+    #     results.append(workflow_result)
 
-    save_dataclass_list_to_json(results, config_data['data']['path']['results'])
+    # save_dataclass_list_to_json(results, config_data['data']['path']['results'])
 
 
 
