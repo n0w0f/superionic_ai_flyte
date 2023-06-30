@@ -28,23 +28,35 @@ minio_client = Minio(
 
 print(minio_client.bucket_exists("superionic-ai"))
 
+def upload_file( file_path, config_local, config_minio , bucket_name ):
 
-
-def upload_file(bucket_name, object_name, file_path):
     try:
         # Check if the bucket exists
         if not minio_client.bucket_exists(bucket_name):
             print(f"Bucket '{bucket_name}' does not exist.")
             return
+ 
+        # Generate the MinIO object name by appending the file name to a base folder path
+        object_name =  file_path.replace( config_local, config_minio )
+
 
         # Upload the file to MinIO
+
         minio_client.fput_object(bucket_name, object_name, file_path)
 
-        print(f"File '{object_name}' uploaded successfully.")
-    except S3Error as e:
-        print(f"Error uploading file: {e}")
 
-def download_file(bucket_name, object_name, file_path):
+        print(f"File '{file_path}' uploaded as '{object_name}'")
+
+        return file_path
+        
+    except S3Error as e:
+        print(f"Error uploading files to MinIO: {e}")
+
+
+
+
+#object name is minio path
+def download_file(object_name, file_path, bucket_name = "superionic-ai"):
     try:
         # Download the file from MinIO
         minio_client.fget_object(bucket_name, object_name, file_path)
@@ -53,16 +65,73 @@ def download_file(bucket_name, object_name, file_path):
     except S3Error as e:
         print(f"Error downloading file: {e}")
 
-# Specify the bucket name, object name (file name in MinIO), and local file path
-bucket_name = 'test-folder'
-object_name = 'Na2PS3/mp-38200md_T600.log'
-local_file_path = '/home/nawaf/workflows/superionic_ai_flyte/src/data/md_logs/Na2PS3/mp-38200md_T600.log'
 
-# Upload the file to MinIO
-upload_file(bucket_name, object_name, local_file_path)
 
-# Download the file from MinIO
-#download_file(bucket_name, object_name = 'Na2PS3/mp-38200md_T600.log',file_path ="/home/nawaf/workflows/superionic_ai_flyte/src/data/md_logs/Na2PS3")
+
+def upload_files_to_minio( file_paths, config_local, config_minio , bucket_name  ):
+    try:
+        # Check if the bucket exists
+        if not minio_client.bucket_exists(bucket_name):
+            print(f"Bucket '{bucket_name}' does not exist.")
+            return
+
+        for file_path in file_paths:
+            
+            # Generate the MinIO object name by appending the file name to a base folder path
+            object_name =  file_path.replace( config_local, config_minio )
+
+
+            # Upload the file to MinIO
+
+            minio_client.fput_object(bucket_name, object_name, file_path)
+
+
+            print(f"File '{file_path}' uploaded as '{object_name}'")
+        
+        print("All files uploaded successfully.")
+    except S3Error as e:
+        print(f"Error uploading files to MinIO: {e}")
+
+
+
+def download_folder_from_minio( folder_name, destination_path,  bucket_name,):
+    try:
+        # Check if the bucket exists
+        if not minio_client.bucket_exists(bucket_name):
+            print(f"Bucket '{bucket_name}' does not exist.")
+            return
+
+        # Create the destination folder if it doesn't exist
+        os.makedirs(destination_path, exist_ok=True)
+
+        # Retrieve a list of objects in the folder
+        objects = minio_client.list_objects(bucket_name, prefix=folder_name, recursive=True)
+
+
+        for obj in objects:
+
+            # Skip directories
+            if obj.is_dir:
+                continue
+
+            # Generate the local file path by replacing the MinIO folder name with the destination path
+   
+            local_file_path = obj.object_name.replace(folder_name, destination_path)
+
+            # Create the directory structure if it doesn't exist
+            os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+
+            # Download the file from MinIO
+            minio_client.fget_object(bucket_name, obj.object_name, local_file_path)
+     
+
+
+            print(f"File '{obj.object_name}' downloaded to '{local_file_path}'")
+
+        print("Folder downloaded successfully.")
+    except S3Error as e:
+        print(f"Error downloading folder from MinIO: {e}")
+
 
 
 
@@ -88,5 +157,6 @@ def create_folders_minio (bucket_name : str , elements: List[str], root_path: st
             print(f"Folder '{object_name}' created successfully.")
     except S3Error as e:
         print(f"Error creating folder: {e}")
+
 
 
