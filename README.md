@@ -1,10 +1,10 @@
-superionic_ai
+Superionic_ai [FLYTE]
 ==============================
 
 
 
 
-A heirarchical screening workflow to discover superionic conductors
+A heirarchical screening workflow to discover superionic conductors managed by flyte
 
 
 ## Local Installation
