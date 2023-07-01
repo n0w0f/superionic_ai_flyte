@@ -1,6 +1,6 @@
 data:
 
-  minio:
+  remote:
     bucket_name : superionic-ai
     results: "data/json/data.json"
     processed_save_path: "data/processed_cifs"

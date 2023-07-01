@@ -12,8 +12,10 @@ from pymatgen.core import Structure
 
 from data_prep.structure_builder import prepare_folders, substitute_materials
 from utils.manage_files import  save_dataclass_list_to_json
-from minio_lake.client import upload_files_to_minio
-from minio_lake.client import download_folder_from_minio, upload_file
+from minio_lake.client import upload_files_to_remote
+from minio_lake.client import download_folder_from_remote, upload_file
+
+from flytekit import task, workflow
 
 
 # Specify the path to the config.yaml file
@@ -22,7 +24,6 @@ config_path = os.path.join("..", "config", "config.yaml")
 # Read the config.yaml file
 with open(config_path, 'r') as file:
     config_data = yaml.safe_load(file)
-
 
 
 @dataclass
@@ -38,22 +39,16 @@ class material_class:
     diffusion_coefficient: float = 0.0
     fit: bool = False
 
-
-
-
+@workflow(cache=False, container_image="docker.io/akshatvolta/m3gnet:new")
 def workflow(cif_file : str,  config: dict ) -> material_class:
 
 
-
-
     # Perform geometry optimization (relaxation) on the unrelaxed structure
-    local_cif, minio_cif = run_relax(cif_file, config['model']['m3gnet']['relaxer'], config['data'])
-
-
+    local_cif, remote_cif = run_relax(cif_file, config['model']['m3gnet']['relaxer'], config['data'])
 
     
     # Perform formation energy prediction on the relaxed structure
-    formation_energy = predict_formation_energy(local_cif, minio_cif, config['model']['m3gnet'])
+    formation_energy = predict_formation_energy(local_cif, remote_cif, config['model']['m3gnet'])
 
     stability = check_stability(formation_energy, config['workflow']['screen_cutoffs']['formation_energy'])
 
@@ -70,7 +65,7 @@ def workflow(cif_file : str,  config: dict ) -> material_class:
     if screen_result.stable:
        
         # Perform bandgap prediction on the relaxed structure
-        bandgap = predict_bandgap(local_cif, minio_cif, config['model']['m3gnet'])
+        bandgap = predict_bandgap(local_cif, remote_cif, config['model']['m3gnet'])
         insulator = check_conductivity(bandgap, config['workflow']['screen_cutoffs']['bandgap'])
 
         # Create instances of WorkflowResult data class
@@ -89,9 +84,9 @@ def workflow(cif_file : str,  config: dict ) -> material_class:
         screen_result.fit = True
 
         
-        diffusion_coefficient_list , traj_filename_list , lof_file_list = run_molecular_dynamics(local_cif, minio_cif, config['data'] , config['workflow'] )
-        upload_files_to_minio(traj_filename_list, config_data['data']['path']['md_traj_save_path'], config_data['data']['minio']['md_traj_save_path'] , config_data['data']['minio']['bucket_name'])
-        upload_files_to_minio(lof_file_list, config_data['data']['path']['md_traj_save_path'], config_data['data']['minio']['md_traj_save_path'] , config_data['data']['minio']['bucket_name'])
+        diffusion_coefficient_list , traj_filename_list , lof_file_list = run_molecular_dynamics(local_cif, remote_cif, config['data'] , config['workflow'] )
+        upload_files_to_remote(traj_filename_list, config_data['data']['path']['md_traj_save_path'], config_data['data']['remote']['md_traj_save_path'] , config_data['data']['remote']['bucket_name'])
+        upload_files_to_remote(lof_file_list, config_data['data']['path']['md_traj_save_path'], config_data['data']['remote']['md_traj_save_path'] , config_data['data']['remote']['bucket_name'])
 
 
         screen_result.diffusion_coefficient = diffusion_coefficient_list
@@ -109,8 +104,27 @@ def workflow(cif_file : str,  config: dict ) -> material_class:
     
 
 
+@workflow(cache=False, container_image="docker.io/akshatvolta/m3gnet:new")
+def start():
+    materials,substituted_materials = prepare_folders(config_data['data']['path'] , config_data['data']['substitution'] )
+
+    raw_cif_paths , substituted_cif_paths = substitute_materials(materials, substituted_materials, config_data['data']['path'],  config_data['data']['substitution'])
+
+    upload_files_to_remote(raw_cif_paths, config_data['data']['path']['raw_save_path'], config_data['data']['remote']['raw_save_path'] , config_data['data']['remote']['bucket_name'])
+    upload_files_to_remote(substituted_cif_paths, config_data['data']['path']['processed_save_path'], config_data['data']['remote']['processed_save_path'] ,  config_data['data']['remote']['bucket_name'])
+    
+    download_folder_from_remote( config_data['data']['remote']['raw_save_path'] , config_data['data']['path']['raw_save_path'], config_data['data']['remote']['bucket_name'])
+    download_folder_from_remote( config_data['data']['remote']['processed_save_path'] , config_data['data']['path']['processed_save_path'], config_data['data']['remote']['bucket_name'])
+   
 
 
+    results: List[material_class] = []
+    for cif_file in substituted_cif_paths:
+
+        workflow_result =  workflow(cif_file, config_data)
+        results.append(workflow_result)
+
+    save_dataclass_list_to_json(results, config_data['data']['path']['results'])
 
 
 
@@ -120,13 +134,11 @@ if __name__ == "__main__":
 
     raw_cif_paths , substituted_cif_paths = substitute_materials(materials, substituted_materials, config_data['data']['path'],  config_data['data']['substitution'])
 
-    upload_files_to_minio(raw_cif_paths, config_data['data']['path']['raw_save_path'], config_data['data']['minio']['raw_save_path'] , config_data['data']['minio']['bucket_name'])
-    upload_files_to_minio(substituted_cif_paths, config_data['data']['path']['processed_save_path'], config_data['data']['minio']['processed_save_path'] ,  config_data['data']['minio']['bucket_name'])
+    upload_files_to_remote(raw_cif_paths, config_data['data']['path']['raw_save_path'], config_data['data']['remote']['raw_save_path'] , config_data['data']['remote']['bucket_name'])
+    upload_files_to_remote(substituted_cif_paths, config_data['data']['path']['processed_save_path'], config_data['data']['remote']['processed_save_path'] ,  config_data['data']['remote']['bucket_name'])
     
-    download_folder_from_minio( config_data['data']['minio']['raw_save_path'] , config_data['data']['path']['raw_save_path'], config_data['data']['minio']['bucket_name'])
-    download_folder_from_minio( config_data['data']['minio']['processed_save_path'] , config_data['data']['path']['processed_save_path'], config_data['data']['minio']['bucket_name'])
-   
-   
+    download_folder_from_remote( config_data['data']['remote']['raw_save_path'] , config_data['data']['path']['raw_save_path'], config_data['data']['remote']['bucket_name'])
+    download_folder_from_remote( config_data['data']['remote']['processed_save_path'] , config_data['data']['path']['processed_save_path'], config_data['data']['remote']['bucket_name'])
    
 
 

@@ -19,30 +19,30 @@ print(f"MinIO Endpoint: {endpoint}")
 
 
 # Set up MinIO client
-minio_client = Minio(
+remote_client = Minio(
     endpoint=endpoint,
     access_key=access_key,
     secret_key=secret_key,
     secure=False
 )
 
-print(minio_client.bucket_exists("superionic-ai"))
+print(remote_client.bucket_exists("superionic-ai"))
 
-def upload_file( file_path, config_local, config_minio , bucket_name ):
+def upload_file( file_path : str, config_local : str, config_remote : str , bucket_name :str ):
 
     try:
         # Check if the bucket exists
-        if not minio_client.bucket_exists(bucket_name):
+        if not remote_client.bucket_exists(bucket_name):
             print(f"Bucket '{bucket_name}' does not exist.")
             return
  
         # Generate the MinIO object name by appending the file name to a base folder path
-        object_name =  file_path.replace( config_local, config_minio )
+        object_name =  file_path.replace( config_local, config_remote )
 
 
         # Upload the file to MinIO
 
-        minio_client.fput_object(bucket_name, object_name, file_path)
+        remote_client.fput_object(bucket_name, object_name, file_path)
 
 
         print(f"File '{file_path}' uploaded as '{object_name}'")
@@ -56,10 +56,10 @@ def upload_file( file_path, config_local, config_minio , bucket_name ):
 
 
 #object name is minio path
-def download_file(object_name, file_path, bucket_name = "superionic-ai"):
+def download_file(object_name : str, file_path :str, bucket_name = "superionic-ai"):
     try:
         # Download the file from MinIO
-        minio_client.fget_object(bucket_name, object_name, file_path)
+        remote_client.fget_object(bucket_name, object_name, file_path)
 
         print(f"File '{object_name}' downloaded successfully.")
     except S3Error as e:
@@ -68,22 +68,22 @@ def download_file(object_name, file_path, bucket_name = "superionic-ai"):
 
 
 
-def upload_files_to_minio( file_paths, config_local, config_minio , bucket_name  ):
+def upload_files_to_remote( file_paths :str, config_local :str, config_remote :str , bucket_name  = "superionic-ai"):
     try:
         # Check if the bucket exists
-        if not minio_client.bucket_exists(bucket_name):
+        if not remote_client.bucket_exists(bucket_name):
             print(f"Bucket '{bucket_name}' does not exist.")
             return
 
         for file_path in file_paths:
             
             # Generate the MinIO object name by appending the file name to a base folder path
-            object_name =  file_path.replace( config_local, config_minio )
+            object_name =  file_path.replace( config_local, config_remote )
 
 
             # Upload the file to MinIO
 
-            minio_client.fput_object(bucket_name, object_name, file_path)
+            remote_client.fput_object(bucket_name, object_name, file_path)
 
 
             print(f"File '{file_path}' uploaded as '{object_name}'")
@@ -94,10 +94,10 @@ def upload_files_to_minio( file_paths, config_local, config_minio , bucket_name 
 
 
 
-def download_folder_from_minio( folder_name, destination_path,  bucket_name,):
+def download_folder_from_remote( folder_name : str  ,   destination_path :str,  bucket_name,):
     try:
         # Check if the bucket exists
-        if not minio_client.bucket_exists(bucket_name):
+        if not remote_client.bucket_exists(bucket_name):
             print(f"Bucket '{bucket_name}' does not exist.")
             return
 
@@ -105,7 +105,7 @@ def download_folder_from_minio( folder_name, destination_path,  bucket_name,):
         os.makedirs(destination_path, exist_ok=True)
 
         # Retrieve a list of objects in the folder
-        objects = minio_client.list_objects(bucket_name, prefix=folder_name, recursive=True)
+        objects = remote_client.list_objects(bucket_name, prefix=folder_name, recursive=True)
 
 
         for obj in objects:
@@ -122,7 +122,7 @@ def download_folder_from_minio( folder_name, destination_path,  bucket_name,):
             os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
 
             # Download the file from MinIO
-            minio_client.fget_object(bucket_name, obj.object_name, local_file_path)
+            remote_client.fget_object(bucket_name, obj.object_name, local_file_path)
      
 
 
@@ -135,13 +135,11 @@ def download_folder_from_minio( folder_name, destination_path,  bucket_name,):
 
 
 
-
-
-def create_folders_minio (bucket_name : str , elements: List[str], root_path: str):
+def create_folders_remote (bucket_name : str , elements: List[str], root_path: str):
 
     try:
         # Check if the bucket exists
-        if not minio_client.bucket_exists(bucket_name):
+        if not remote_client.bucket_exists(bucket_name):
             print(f"Bucket '{bucket_name}' does not exist.")
             return
 
@@ -152,7 +150,7 @@ def create_folders_minio (bucket_name : str , elements: List[str], root_path: st
             object_name = folder_path + '/'
             data = b''
             data_stream = io.BytesIO(data)
-            minio_client.put_object(bucket_name, object_name, data_stream, 0)
+            remote_client.put_object(bucket_name, object_name, data_stream, 0)
 
             print(f"Folder '{object_name}' created successfully.")
     except S3Error as e:
