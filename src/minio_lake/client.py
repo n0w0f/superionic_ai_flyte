@@ -47,7 +47,7 @@ def upload_file( file_path : str, config_local : str, config_remote : str , buck
 
         print(f"File '{file_path}' uploaded as '{object_name}'")
 
-        return file_path
+        return object_name
         
     except S3Error as e:
         print(f"Error uploading files to MinIO: {e}")

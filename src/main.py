@@ -32,7 +32,8 @@ class material_class:
 
 
 @task(cache=False, container_image="docker.io/aswanthkrshna/m3gnet:minio") 
-def pipeline(cif_file : str,  config: dict ) -> str:
+def pipeline(cif_file : str,  minio_path : str, local_path :str ) -> str:
+
 
     from models.m3gnet_ff import run_relax, predict_formation_energy,predict_bandgap
     from models.screen import check_conductivity, check_stability
@@ -41,11 +42,25 @@ def pipeline(cif_file : str,  config: dict ) -> str:
     from pymatgen.core import Structure
 
 
+    download_file(minio_path,local_path)
+
+    # Read the config.yaml file
+    with open(local_path, 'r') as file:
+        config = yaml.safe_load(file)
+
+
     # Perform geometry optimization (relaxation) on the unrelaxed structure
     local_cif, remote_cif = run_relax(cif_file=cif_file, config_model=config['model']['m3gnet']['relaxer'], config_path=config['data'])
-    
+
+
+    print(local_cif)
+    print(local_cif)
+    print(local_cif)
+
     # Perform formation energy prediction on the relaxed structure
-    formation_energy = predict_formation_energy(local_cif=local_cif, remote_cif=remote_cif, config=config['model']['m3gnet'])
+    
+    
+    formation_energy = predict_formation_energy(local_cif=local_cif, remote_cif=remote_cif, config=config)
 
     print(formation_energy)
     print(formation_energy)
@@ -53,7 +68,11 @@ def pipeline(cif_file : str,  config: dict ) -> str:
 
     stability = check_stability(formation_energy, config['workflow']['screen_cutoffs']['formation_energy'])
 
+    print(stability)
+    print(stability)
+    print(stability)
 
+    
     # Create instances of WorkflowResult data class
     screen_result = material_class(relaxed_cif_path=local_cif,
                                     unrelaxed_cif_path=cif_file,
@@ -63,11 +82,24 @@ def pipeline(cif_file : str,  config: dict ) -> str:
 
     #screening  - based on bandgap
 
+    print(screen_result)
+    print(screen_result)
+    print(screen_result)
+
     if screen_result.stable:
-       
+
+        
         # Perform bandgap prediction on the relaxed structure
-        bandgap = predict_bandgap(local_cif=local_cif, remote_cif=remote_cif, config=config['model']['m3gnet'])
+        bandgap = predict_bandgap(local_cif=local_cif, remote_cif=remote_cif, config=config)
+        print(bandgap)
+        print(bandgap)
+        print(bandgap)
+
         insulator = check_conductivity(bandgap, config['workflow']['screen_cutoffs']['bandgap'])
+        print(insulator)
+        print(insulator)
+        print(insulator)
+        
 
         # Create instances of WorkflowResult data class
         screen_result.bandgap = bandgap
@@ -75,6 +107,7 @@ def pipeline(cif_file : str,  config: dict ) -> str:
 
     else:
         print("The material not stable.")
+        return "hi"
 
 
     #screening  - based on diffusion
@@ -89,11 +122,14 @@ def pipeline(cif_file : str,  config: dict ) -> str:
         upload_files_to_remote(lof_file_list, config['data']['path']['md_traj_save_path'], config['data']['remote']['md_traj_save_path'] , config['data']['remote']['bucket_name'])
 
         screen_result.diffusion_coefficient = diffusion_coefficient_list
+        screen_result.md_log_files = lof_file_list
+        screen_result.trjaectory_files = traj_filename_list
         print(screen_result)
         return "hi"
 
     else:
         print("The material does not fit the criteria.")
+        return "hi"
 
 
 
@@ -103,11 +139,28 @@ def data_prep(minio_path:str , local_path: str) -> List[str]:
     download_file(minio_path,local_path)
 
     # Read the config.yaml file
-
     with open(local_path, 'r') as file:
         config_data = yaml.safe_load(file)
 
+    download_file(minio_path,local_path)
+
     print(config_data)
+
+    fe_checkpoints_local = config_data['model']['m3gnet']['checkpoints']['local']['formation_energy_checkpoint']
+    folder_path = os.path.join("/superionic_ai/src/data/models/m3gnet_models/matbench_mp_e_form/0/m3gnet")
+    os.makedirs(folder_path, exist_ok=True)
+
+    fe_checkpoints_remote = config_data['model']['m3gnet']['checkpoints']['remote']['formation_energy_checkpoint']
+    download_folder_from_remote( fe_checkpoints_remote , fe_checkpoints_local, config_data['data']['remote']['bucket_name'])
+    
+    bg_checkpoints_local = config_data['model']['m3gnet']['checkpoints']['local']['formation_energy_checkpoint']
+
+    folder_path = os.path.join("/superionic_ai/src/data/models/m3gnet_models/matbench_mp_gap/0/m3gnet")
+    os.makedirs(folder_path, exist_ok=True)
+    
+    bg_checkpoints_remote = config_data['model']['m3gnet']['checkpoints']['remote']['formation_energy_checkpoint']
+    download_folder_from_remote( bg_checkpoints_remote , bg_checkpoints_local, config_data['data']['remote']['bucket_name'])
+       
 
     materials,substituted_materials = prepare_folders(config_data['data'], config_data['data']['substitution'] )
 
@@ -119,17 +172,20 @@ def data_prep(minio_path:str , local_path: str) -> List[str]:
     download_folder_from_remote( config_data['data']['remote']['raw_save_path'] , config_data['data']['path']['raw_save_path'], config_data['data']['remote']['bucket_name'])
     download_folder_from_remote( config_data['data']['remote']['processed_save_path'] , config_data['data']['path']['processed_save_path'], config_data['data']['remote']['bucket_name'])
    
+    
     return substituted_cif_paths
 
+
 @dynamic(cache=False, container_image="docker.io/aswanthkrshna/m3gnet:minio") 
-def parallel_workflow(substituted_cif_paths : List[str], config : dict)->str:
+def parallel_workflow(substituted_cif_paths : List[str], minio_path : str, local_path: str)->str:
+    
     print(substituted_cif_paths)
     result = list()
     for path in substituted_cif_paths:
         print(path)
         print(path)
         print(path)
-        r = pipeline(cif_file=path, config=config)
+        r = pipeline(cif_file=path, minio_path=minio_path, local_path = local_path)
         print(r) 
     return "hi"
     #return [pipeline(cif_file=path, config=config) for path in substituted_cif_paths]
@@ -146,12 +202,9 @@ def start() -> None:
 
     substituted_cif_paths = data_prep(minio_path=minio_path, local_path = local_path)
 
+    parallel_workflow(substituted_cif_paths=substituted_cif_paths, minio_path=minio_path, local_path = local_path)
 
-    # Read the config.yaml file
-    with open(local_path, 'r') as file:
-        config_data = yaml.safe_load(stream=file)
 
-    parallel_workflow(substituted_cif_paths=substituted_cif_paths, config=config_data)
     
     #results: List[material_class] = []
 

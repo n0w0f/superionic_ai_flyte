@@ -1,11 +1,12 @@
 import warnings
 
+import os
 from typing import Tuple
 from m3gnet.models import M3GNet, Relaxer
 from pymatgen.io.cif import CifParser
 from pymatgen.core import Structure
 
-from minio_lake.client import  upload_file, download_file
+from minio_lake.client import  upload_file, download_file , download_folder_from_remote
 from flytekit import task
 
 # for category in (UserWarning, DeprecationWarning):
@@ -37,9 +38,16 @@ def run_relax(cif_file : str , config_model : dict , config_path : dict) -> Tupl
 
     relaxed_structure = relax_results['final_structure']
     #Energy = float(relax_results['trajectory'].energies[-1]/len(structure))
+    os.makedirs(os.path.dirname(relaxed_cif_filename), exist_ok=True)
 
     cif_writer = CifWriter(relaxed_structure)
     cif_writer.write_file(relaxed_cif_filename)
+
+    print(relaxed_cif_filename)
+    print(relaxed_cif_filename)
+    print(relaxed_cif_filename)
+    print(relaxed_cif_filename)
+
 
     file_path_remote = upload_file( relaxed_cif_filename, config_path['path']['relaxed_save_path'], config_path['remote']['relaxed_save_path'] , config_path['remote']['bucket_name'] )
 
@@ -52,10 +60,19 @@ def run_relax(cif_file : str , config_model : dict , config_path : dict) -> Tupl
 #@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
 def predict_formation_energy(local_cif : str, remote_cif :str, config : dict)-> float:
 
-    download_file(remote_cif, local_cif )
+    print("I am in formation energy")
+
+    # download_file(remote_cif, local_cif )
+
+    fe_checkpoints_local = "/superionic_ai/src/data/models/m3gnet_models/matbench_mp_e_form/0/m3gnet"
+    folder_path = os.path.join("/superionic_ai/src/data/models/m3gnet_models/matbench_mp_e_form/0/m3gnet")
+    os.makedirs(folder_path, exist_ok=True)
+
+    fe_checkpoints_remote = "data/models/m3gnet_models/matbench_mp_e_form/0/m3gnet"
+    download_folder_from_remote( fe_checkpoints_remote , fe_checkpoints_local, config['data']['remote']['bucket_name'])
 
     pymatgen_struct = Structure.from_file(local_cif)
-    m3gnet_e_form = M3GNet.from_dir(config['checkpoints']['formation_energy_checkpoint'])
+    m3gnet_e_form = M3GNet.from_dir("/superionic_ai/src/data/models/m3gnet_models/matbench_mp_e_form/0/m3gnet")
     e_form_predict = m3gnet_e_form.predict_structure(pymatgen_struct)
     
     return e_form_predict.numpy().tolist()[0].pop()
@@ -64,12 +81,21 @@ def predict_formation_energy(local_cif : str, remote_cif :str, config : dict)-> 
 #@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
 def predict_bandgap(local_cif : str, remote_cif :str, config : dict)-> float:
 
-    download_file(remote_cif, local_cif, )
+    # download_file(remote_cif, local_cif, )
+
+    print("I am in bandgap prediction")
 
     pymatgen_struct = Structure.from_file(local_cif)
+
+    bg_checkpoints_local = "/superionic_ai/src/data/models/m3gnet_models/matbench_mp_gap/0/m3gnet"
+    folder_path = os.path.join("/superionic_ai/src/data/models/m3gnet_models/matbench_mp_gap/0/m3gnet")
+    os.makedirs(folder_path, exist_ok=True)
+    
+    bg_checkpoints_remote =  "data/models/m3gnet_models/matbench_mp_gap/0/m3gnet"
+    download_folder_from_remote( bg_checkpoints_remote , bg_checkpoints_local, config['data']['remote']['bucket_name'])
     
 
-    m3gnet_bgap = M3GNet.from_dir(config['checkpoints']['bandgap_checkpoint'])
+    m3gnet_bgap = M3GNet.from_dir("/superionic_ai/src/data/models/m3gnet_models/matbench_mp_gap/0/m3gnet")
     bgap_predict = m3gnet_bgap.predict_structure(pymatgen_struct)
     
 

@@ -11,6 +11,7 @@ from m3gnet.models import MolecularDynamics
 from minio_lake.client import download_file
 
 from typing import List, Tuple
+import os
 
 '''
 
@@ -48,6 +49,9 @@ def run_molecular_dynamics(local_cif : str , remote_cif : str , config_path : di
 
         traj_ = traj_filename.replace('.traj', f'_T{temperature}.traj')
         lof_ = lof_file.replace('.log', f'_T{temperature}.log')
+        
+        os.makedirs(os.path.dirname(traj_), exist_ok=True)
+        os.makedirs(os.path.dirname(lof_), exist_ok=True)
 
 
         config_workflow['md_dynamics']['temperature'] = temperature
