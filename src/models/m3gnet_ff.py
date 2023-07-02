@@ -6,18 +6,16 @@ from pymatgen.io.cif import CifParser
 from pymatgen.core import Structure
 
 from minio_lake.client import  upload_file, download_file
-
 from flytekit import task
 
-for category in (UserWarning, DeprecationWarning):
-    warnings.filterwarnings("ignore", category=category, module="tensorflow")
+# for category in (UserWarning, DeprecationWarning):
+#     warnings.filterwarnings("ignore", category=category, module="tensorflow")
 
-model = M3GNet.load()
-
+# model = M3GNet.load()
 
 from pymatgen.io.cif import CifWriter
 
-@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
+#@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
 def run_relax(cif_file : str , config_model : dict , config_path : dict) -> Tuple[str, str] :
 
     updated_cif_filename = cif_file.replace("_updated.cif", "_relaxed.cif")
@@ -25,7 +23,6 @@ def run_relax(cif_file : str , config_model : dict , config_path : dict) -> Tupl
 
     # Read the unrelaxed structure from the processed CIF
     unrelaxed_structure = Structure.from_file(cif_file)
-
 
     relaxer = Relaxer()  # This loads the default pre-trained model
 
@@ -52,10 +49,10 @@ def run_relax(cif_file : str , config_model : dict , config_path : dict) -> Tupl
 
 
 
-@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
+#@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
 def predict_formation_energy(local_cif : str, remote_cif :str, config : dict)-> float:
 
-    download_file(remote_cif, local_cif, )
+    download_file(remote_cif, local_cif )
 
     pymatgen_struct = Structure.from_file(local_cif)
     m3gnet_e_form = M3GNet.from_dir(config['checkpoints']['formation_energy_checkpoint'])
@@ -64,7 +61,7 @@ def predict_formation_energy(local_cif : str, remote_cif :str, config : dict)-> 
     return e_form_predict.numpy().tolist()[0].pop()
 
 
-@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
+#@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
 def predict_bandgap(local_cif : str, remote_cif :str, config : dict)-> float:
 
     download_file(remote_cif, local_cif, )

@@ -7,12 +7,12 @@ import os
 import io
 
 # Load environment variables from .env file
-env_vars = dotenv_values('../.env')
+env_vars = dotenv_values('/config/.env')
 
 # Retrieve MinIO endpoint, access key, and secret key from environment variables
-endpoint = env_vars['MINIO_ENDPOINT']
-access_key = env_vars['MINIO_ACCESS_KEY']
-secret_key = env_vars['MINIO_SECRET_KEY']
+endpoint = '192.168.9.13:30002'
+access_key = 'GbhgmzTziWIanCKPaay0'
+secret_key = 'miniostorage'
 
 # Use the variables as needed
 print(f"MinIO Endpoint: {endpoint}")

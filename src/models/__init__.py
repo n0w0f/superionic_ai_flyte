@@ -1,1 +1,1 @@
-from models import m3gnet, screen , dynamics
+from models import m3gnet_ff, screen , dynamics

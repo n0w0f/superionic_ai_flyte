@@ -16,7 +16,7 @@ from minio_lake.client import create_folders_remote
 
 def prepare_folders(config : dict, config_substi : dict )-> Tuple[List[str], List[str]]:
     # Read material compositions from start_mat.yaml
-    materials = read_material_compositions(config['starter_materials'])
+    materials = config['starter_materials']
     print(materials)
 
     # Substitute element in material compositions
@@ -25,16 +25,16 @@ def prepare_folders(config : dict, config_substi : dict )-> Tuple[List[str], Lis
 
 
     # Create folders for raw CIFs
-    create_folders_with_names(materials, config['raw_save_path'])
+    create_folders_with_names(materials, config['path']['raw_save_path'])
 
     # Create folders for processed CIFs
-    create_folders_with_names(substituted_materials, config['processed_save_path'])
+    create_folders_with_names(substituted_materials, config['path']['processed_save_path'])
 
     # Create folders for relaxed CIFs
-    create_folders_with_names(substituted_materials, config['relaxed_save_path'])
+    create_folders_with_names(substituted_materials, config['path']['relaxed_save_path'])
 
     # Create folders for md trajectories and logs
-    create_folders_with_names(substituted_materials, config['md_traj_save_path'])
+    create_folders_with_names(substituted_materials, config['path']['md_traj_save_path'])
 
     return materials,substituted_materials
 
