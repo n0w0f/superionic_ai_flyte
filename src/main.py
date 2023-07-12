@@ -32,7 +32,7 @@ class material_class:
 
 
 @task(cache=False, container_image="docker.io/aswanthkrshna/m3gnet:minio") 
-def pipeline(cif_file : str,  minio_path : str, local_path :str ) -> int:
+def pipeline_battery(cif_file : str,  minio_path : str, local_path :str ) -> int:
 
 
     from models.m3gnet_ff import run_relax, predict_formation_energy,predict_bandgap
@@ -130,24 +130,6 @@ def data_prep(minio_path:str , local_path: str) -> List[str]:
 
     download_file(minio_path,local_path)
 
-    # print(config_data)
-
-    # fe_checkpoints_local = config_data['model']['m3gnet']['checkpoints']['local']['formation_energy_checkpoint']
-    # folder_path = os.path.join("/superionic_ai/src/data/models/m3gnet_models/matbench_mp_e_form/0/m3gnet")
-    # os.makedirs(folder_path, exist_ok=True)
-
-    # fe_checkpoints_remote = config_data['model']['m3gnet']['checkpoints']['remote']['formation_energy_checkpoint']
-    # download_folder_from_remote( fe_checkpoints_remote , fe_checkpoints_local, config_data['data']['remote']['bucket_name'])
-    
-    # bg_checkpoints_local = config_data['model']['m3gnet']['checkpoints']['local']['formation_energy_checkpoint']
-
-    # folder_path = os.path.join("/superionic_ai/src/data/models/m3gnet_models/matbench_mp_gap/0/m3gnet")
-    # os.makedirs(folder_path, exist_ok=True)
-    
-    # bg_checkpoints_remote = config_data['model']['m3gnet']['checkpoints']['remote']['formation_energy_checkpoint']
-    # download_folder_from_remote( bg_checkpoints_remote , bg_checkpoints_local, config_data['data']['remote']['bucket_name'])
-       
-
     materials,substituted_materials = prepare_folders(config_data['data'], config_data['data']['substitution'] )
 
     raw_cif_paths , substituted_cif_paths = substitute_materials(materials, substituted_materials, config_data['data']['path'],  config_data['data']['substitution'])
@@ -170,7 +152,7 @@ def parallel_workflow(substituted_cif_paths : List[str], minio_path : str, local
     for path in substituted_cif_paths:
         print(path)
 
-        r = pipeline(cif_file=path, minio_path=minio_path, local_path = local_path)
+        r = pipeline_battery(cif_file=path, minio_path=minio_path, local_path = local_path)
         print(r) 
     return 0
 
@@ -189,11 +171,85 @@ def start() -> None:
     parallel_workflow(substituted_cif_paths=substituted_cif_paths, minio_path=minio_path, local_path = local_path)
 
 
+'''
 
+import warnings
+from ase.io import read, write
+from m3gnet.models import M3GNet, Relaxer
+from pymatgen.core import Lattice, Structure
+from pymatgen.io.ase import AseAtomsAdaptor
+
+for category in (UserWarning, DeprecationWarning):
+    warnings.filterwarnings("ignore", category=category, module="tensorflow")
+
+model = M3GNet.load()
+
+@task(cache=False, container_image="docker.io/akshatvolta/m3gnet:new")
+def run_relax(structure_relax: structure ):
+    
+
+    relaxer = Relaxer()  # This loads the default pre-trained model
+
+
+        # fmax: float = 0.1,
+        # steps: int = 500,
+        # traj_file: str = None,
+        # interval=1,
+        # verbose=False,
+
+
+    relax_results = relaxer.relax(structure,fmax=0.1,steps=100, verbose=True,)
+
+    final_structure = relax_results['final_structure']
+    Energy = float(relax_results['trajectory'].energies[-1]/len(structure))
+    return Energy
+
+@workflow
+def catalyst_workflow(
+    mat_composition: str = "ZnO", molecule: str = "CO2", plane: List[int] = [1, 1, 1]
+) -> float:
+    """run adsorption energy calculation 😌 
+    Args:
+        mat_composition (str): composition of catalyst material
+        molecule (str) :  molecule that has to be adsorbed
+        plane (tuple): orientaion of the plane where adsorption has to happen
+
+    Returns:
+        None
+
+    """
+
+    bare_slab, ads_structure, molecule = prep_catalyst_workflow_structures(
+        mat_composition=mat_composition, molecule=molecule, miller_index=plane
+    )
+
+
+    PE_slab = run_relax(ads_structure)
+    PE_adsorbate = run_relax(bare_slab)
+       
+    Adsorption_energy = PE_adsorbate - PE_slab
+    return Adsorption_energy
+
+catalyst_mat = "ZnO"
+adsorbed_mol = "H2O"
+plane = [1,1,1]
+
+
+val = catalyst_workflow(mat_composition = catalyst_mat, molecule = adsorbed_mol, plane = plane)
+
+
+'''
+
+from data_prep.catalyst_prep import prep_catalyst_workflow_structures
 
 if __name__ == "__main__":
 
-    start()
+    #start()
+    bare_slab, ads_structure, molecule = prep_catalyst_workflow_structures(
+        mat_composition="ZnO", molecule="CO2", miller_index=[1, 1, 1]
+    )
+
+    print (bare_slab, ads_structure, molecule)
         
 
 
