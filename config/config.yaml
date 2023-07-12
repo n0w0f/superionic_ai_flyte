@@ -36,10 +36,19 @@ data:
 model:
 
   m3gnet:
+
     checkpoints: 
-      formation_energy_checkpoint: "/home/nawaf/workflows/superionic_ai/models/m3gnet_models/matbench_mp_e_form/0/m3gnet"
-      bandgap_checkpoint: "/home/nawaf/workflows/superionic_ai/models/m3gnet_models/matbench_mp_gap/0/m3gnet"
-    
+
+      local:
+        directory:  "/superionic_ai/src/data/models/"
+        formation_energy_checkpoint: "/superionic_ai/src/data/models/m3gnet_models/matbench_mp_e_form/0/m3gnet"
+        bandgap_checkpoint: "/superionic_ai/src/data/models/m3gnet_models/matbench_mp_gap/0/m3gnet"
+      
+      remote: 
+        directory: "data/models/"
+        formation_energy_checkpoint: "data/models/m3gnet_models/matbench_mp_e_form/0/m3gnet"
+        bandgap_checkpoint: "data/models/m3gnet_models/matbench_mp_gap/0/m3gnet"
+
     relaxer:
       fmax: 0.1
       steps: 500

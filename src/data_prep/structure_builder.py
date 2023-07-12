@@ -15,6 +15,16 @@ from minio_lake.client import create_folders_remote
 
 
 def prepare_folders(config : dict, config_substi : dict )-> Tuple[List[str], List[str]]:
+    """
+    Query the structures of multiple materials using the Materials Project API and store them as CIF files.
+
+    Args:
+        config (dict): config dictionary with paths for data prep
+        config_substi (dict): config dictionary with material for substitution
+    Returns:
+        List : list of substituted materials
+    """
+
     # Read material compositions from start_mat.yaml
     materials = config['starter_materials']
     print(materials)
@@ -41,6 +51,16 @@ def prepare_folders(config : dict, config_substi : dict )-> Tuple[List[str], Lis
 
 
 def prepare_folders_(config : dict, config_substi : dict )-> Tuple[List[str], List[str]]:
+    """
+    Query the structures of multiple materials using the Materials Project API and store them as CIF files.
+
+    Args:
+        config (dict): config dictionary with paths for data prep
+        config_substi (dict): config dictionary with material for substitution
+    Returns:
+        List : list of substituted materials
+        
+    """
     # Read material compositions from start_mat.yaml
     materials = read_material_compositions(config['starter_materials'])
     print(materials)
@@ -50,16 +70,13 @@ def prepare_folders_(config : dict, config_substi : dict )-> Tuple[List[str], Li
     print(substituted_materials)
 
 
-    # Create folders for raw CIFs
     create_folders_remote(config['bucket_name'], materials, config['raw_save_path'])
 
-    # Create folders for processed CIFs
+
     create_folders_remote(config['bucket_name'], substituted_materials, config['processed_save_path'])
 
-    # Create folders for relaxed CIFs
     create_folders_remote(config['bucket_name'], substituted_materials, config['relaxed_save_path'])
 
-    # Create folders for md trajectories and logs
     create_folders_remote(config['bucket_name'], substituted_materials, config['md_traj_save_path'])
 
     return materials,substituted_materials
