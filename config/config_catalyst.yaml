@@ -1,0 +1,44 @@
+config: 
+
+  minio_path: "data/config_catalyst.yaml"
+  local_path: "catalyst/data/config_catalyst.yaml"
+  repo_path: "/home/nawaf/workflows/superionic_ai_flyte/config/config_catalyst.yaml"
+
+data:
+
+  remote:
+    bucket_name : catalyst
+    results: "data/json/data.json"
+    raw_data : "data/mp_data_dicts.pickle"
+    root_path : "data/structures"
+  
+  path:
+    
+    raw_data_local: "catalyst/mp_data_dicts.pickle"
+    root_path: "catalyst/structures"
+
+
+  results: "superionic_ai/src/data/json/data.json"
+
+model:
+
+  m3gnet:
+
+    relaxer:
+      fmax: 0.1
+      steps: 500
+      traj_file: None
+      interval: 1
+      verbose: True
+
+
+
+
+
+
+
+
+
+    
+  
+  

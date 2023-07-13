@@ -7,6 +7,30 @@ import json
 from dataclasses import asdict
 
 
+def catalyst_cif_paths(parent_directory):
+    """
+    Recursively get all CIF files inside subdirectories within a parent directory.
+    Args:
+        parent_directory (str): The parent directory to search for CIF files.
+    Returns:
+        list: A list of file paths to CIF files.
+    """
+    slab_cif_files = []
+    adsorbate_cif_file = []
+    
+    for root, dirs, files in os.walk(parent_directory):
+        for file in files:
+            if file.endswith("_adsorbate.cif"):
+                file_path = os.path.join(root, file)
+                adsorbate_cif_file.append(file_path)
+
+            elif file.endswith("_slab.cif"):
+                file_path = os.path.join(root, file)
+                slab_cif_files.append(file_path)
+
+    return slab_cif_files , adsorbate_cif_file
+
+
 def save_dataclass_list_to_json(data_list, save_path):
     """
     Save a list of data class objects to a JSON file.

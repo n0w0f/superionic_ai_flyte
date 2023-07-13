@@ -18,15 +18,59 @@ from flytekit import task, workflow
 
 from .mp_query import mp_query_id , mp_query_structure , ase_mp_mol , mp_to_ase
 
+import os
+from pymatgen.io.cif import CifWriter
+
+
+
+def create_folders(elements: str, root_path: str):
+    """
+    Create folders with names corresponding to the elements in the given list at the specified root path.
+
+    Args:
+        elements (List[str]): The list of elements.
+        root_path (str): The root path where folders will be created.
+
+    Returns:
+        None
+    """
+    folder_path = os.path.join(root_path, elements)
+    os.makedirs(folder_path, exist_ok=True)
+    return folder_path
+
+
+def write_cif(mat : structure , path: str)-> None:
+
+    cif_writer = CifWriter(mat)
+    cif_writer.write_file(path) 
+
+
+
+def create_data( mpid: str, catalyst: structure, adsorbate: structure , root_path: str ) -> Tuple[str,str]:
+
+    folder_path = create_folders( mpid , root_path )
+
+    slab_cif_filename = f"{mpid}_slab.cif"
+    slab_cif_path = os.path.join(folder_path, slab_cif_filename)
+    write_cif(catalyst , slab_cif_path)
+
+
+
+    adsorbate_cif_filename = f"{mpid}_adsorbate.cif"
+    adsorbate_cif_path = os.path.join(folder_path, adsorbate_cif_filename)
+    write_cif(adsorbate,adsorbate_cif_path)
+
+    return slab_cif_path , adsorbate_cif_path
+
 
 
 
 def prep_catalyst_workflow_structures(
-    mat_composition: str, molecule: str, miller_index: List[int]
+    catalyst: structure, molecule: str, miller_index: List[int]
 ) ->  Tuple:
     """Prepare structure, molecule for adsorption workflow
     Args:
-        composition (str): composition of material to be queried
+        composition (str): pymatgen structure of the catalyst
         molecule (Molecule) :  molecule that has to be adsorbed
         miller_index (tuple): orientaion of the plane where adsorption has to happen
     Returns:
@@ -90,7 +134,7 @@ def prep_catalyst_workflow_structures(
 
         return ads_structs[0]
 
-    def prep_adsorption_structure(mat_composition: str, molecule: str) -> tuple:
+    def prep_adsorption_structure(catalyst: str, molecule: str) -> tuple:
         """Prepare structure, molecule for adsorption workflow
         Args:
             composition (str): composition of material to be queried
@@ -99,21 +143,18 @@ def prep_catalyst_workflow_structures(
             tuple (tuple) :  (bulkstructure,molecule)
 
         """
-
-        ids = mp_query_id(mat_composition)
-        # ids is a list of different polymorphs in mp
-        bulkstructure = mp_query_structure(ids[0])
+        bulkstructure = catalyst
         mp_molecule = ad_molecule(molecule)
 
         return (bulkstructure, mp_molecule)
 
-    bulkstructure, mp_mol = prep_adsorption_structure(mat_composition, molecule)
+    bulkstructure, mp_mol = prep_adsorption_structure(catalyst, molecule)
     bare_slab_mp = create_slab(bulkstructure, miller_index)
     ads_structure_mp = create_adstructure(bare_slab_mp, mp_mol)
 
-    bare_slab = mp_to_ase(bare_slab_mp)
-    ads_structure = mp_to_ase(ads_structure_mp)
+    #bare_slab = mp_to_ase(bare_slab_mp)
+    #ads_structure = mp_to_ase(ads_structure_mp)
     molecule = ase.build.molecule(molecule)
 
-    return (bare_slab, ads_structure, molecule)
+    return (bare_slab_mp, ads_structure_mp, molecule)
 

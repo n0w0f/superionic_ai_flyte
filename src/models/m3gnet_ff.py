@@ -16,6 +16,36 @@ from flytekit import task
 
 from pymatgen.io.cif import CifWriter
 
+
+
+def push_traj (traj : str , traj_save : str):
+    import pickle
+    from ase import Atoms
+    from ase.io import Trajectory
+
+    with open(traj, "rb") as f:
+        traj = pickle.load(f)
+
+    traj["atom_positions"]
+    atoms_list = []
+    for frame in range(len(traj['energy'])):
+        atoms =  Atoms(symbols=traj["atomic_number"],
+                    positions=traj["atom_positions"][frame],
+                    cell=traj["cell"][frame],
+        )
+        atoms.info["energy"] = traj["energy"][frame]
+        atoms.info["forces"] = traj["forces"][frame]
+        atoms.info["stress"] = traj["stresses"][frame]
+        atoms_list.append(atoms)
+
+    trajectory = Trajectory(traj_save, "w")
+    for atoms in atoms_list:
+        trajectory.write(atoms)
+
+    print("ASE trajectory saved successfully.")
+    
+    
+
 #@task(cache=False, container_image = "docker.io/akshatvolta/m3gnet:new")
 def run_relax(cif_file : str , config_model : dict , config_path : dict) -> Tuple[str, str] :
 
@@ -101,3 +131,47 @@ def predict_bandgap(local_cif : str, remote_cif :str, config : dict)-> float:
 
     return bgap_predict.numpy().tolist()[0].pop()
 
+
+
+
+def relax_catalyst(cif_file : str , config_model : dict , config_path : dict) -> Tuple[str, str] :
+
+    relaxed_cif_filename = cif_file.replace(".cif", "_relaxed.cif")
+    traj_filename = cif_file.replace(".cif", "_trajectory.traj")
+    ase_traj_filename = cif_file.replace(".cif", "_ase_trajectory.traj")
+
+    # Read the unrelaxed structure from the processed CIF
+    unrelaxed_structure = Structure.from_file(cif_file)
+
+    relaxer = Relaxer()  # This loads the default pre-trained model
+
+    relax_results = relaxer.relax(
+        unrelaxed_structure,    
+        fmax = config_model['fmax'],
+        steps = config_model['steps'],
+        traj_file = traj_filename,
+        interval = config_model['interval'],
+        verbose = config_model['verbose'],
+        )
+
+    relaxed_structure = relax_results['final_structure']
+    Energy = float(relax_results['trajectory'].energies[-1]/len(relaxed_structure))
+    os.makedirs(os.path.dirname(relaxed_cif_filename), exist_ok=True)
+
+    cif_writer = CifWriter(relaxed_structure)
+    cif_writer.write_file(relaxed_cif_filename)
+
+    print(relaxed_cif_filename)
+    print(relaxed_cif_filename)
+    print(relaxed_cif_filename)
+    print(relaxed_cif_filename)
+
+    push_traj(traj_filename,ase_traj_filename)
+
+
+    file_path_remote = upload_file( relaxed_cif_filename, config_path['path']['root_path'], config_path['remote']['root_path'] , config_path['remote']['bucket_name'] )
+    traj = upload_file( ase_traj_filename, config_path['path']['root_path'], config_path['remote']['root_path'] , config_path['remote']['bucket_name'] )
+    print(traj)
+
+
+    return Energy , file_path_remote

@@ -14,6 +14,9 @@ from minio_lake.client import create_folders_remote
 
 
 
+
+
+
 def prepare_folders(config : dict, config_substi : dict )-> Tuple[List[str], List[str]]:
     """
     Query the structures of multiple materials using the Materials Project API and store them as CIF files.

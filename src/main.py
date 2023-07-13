@@ -2,15 +2,16 @@ import os
 import yaml
 from typing import List,Tuple
 from dataclasses import dataclass, field
+from dataclasses import asdict
 
 
 
 from data_prep.structure_builder import prepare_folders, substitute_materials
-from utils.manage_files import  save_dataclass_list_to_json
+from utils.manage_files import  save_dataclass_list_to_json , catalyst_cif_paths
 from minio_lake.client import upload_files_to_remote
 from minio_lake.client import download_folder_from_remote, upload_file , download_file
 
-from flytekit import task, workflow, dynamic, map_task
+from flytekit import task, workflow, dynamic, map_task, TaskMetadata, Resources
 from dataclasses_json import dataclass_json
 
 from functools import partial
@@ -145,7 +146,7 @@ def data_prep(minio_path:str , local_path: str) -> List[str]:
 
 
 @dynamic(cache=False, container_image="docker.io/aswanthkrshna/m3gnet:minio") 
-def parallel_workflow(substituted_cif_paths : List[str], minio_path : str, local_path: str)->int:
+def parallel_workflow_battery(substituted_cif_paths : List[str], minio_path : str, local_path: str)->int:
     
     print(substituted_cif_paths)
     #result = list()
@@ -168,88 +169,173 @@ def start() -> None:
 
     substituted_cif_paths = data_prep(minio_path=minio_path, local_path = local_path)
 
-    parallel_workflow(substituted_cif_paths=substituted_cif_paths, minio_path=minio_path, local_path = local_path)
+    parallel_workflow_battery(substituted_cif_paths=substituted_cif_paths, minio_path=minio_path, local_path = local_path)
 
 
 '''
+==========================================================
+Catalyst work flow after here
+==========================================================
+'''
 
-import warnings
-from ase.io import read, write
-from m3gnet.models import M3GNet, Relaxer
-from pymatgen.core import Lattice, Structure
-from pymatgen.io.ase import AseAtomsAdaptor
 
-for category in (UserWarning, DeprecationWarning):
-    warnings.filterwarnings("ignore", category=category, module="tensorflow")
+@task(cache=False, container_image="docker.io/aswanthkrshna/m3gnet:minio")  
+def data_prep_catalyst(minio_path:str , local_path: str) -> List[str]:
+    import pickle
+    from data_prep.catalyst_prep import create_data
 
-model = M3GNet.load()
+    download_file(minio_path,local_path,bucket_name="catalyst")
 
-@task(cache=False, container_image="docker.io/akshatvolta/m3gnet:new")
-def run_relax(structure_relax: structure ):
+    # Read the config.yaml file
+    with open(local_path, 'r') as file:
+        config_data = yaml.safe_load(file)
+
+    print(config_data)
+
     
+    with open('/home/nawaf/spectra/mp_data_dicts.pickle', 'rb') as file:
+        mp_data_dicts = pickle.load(file)
+    
+    root_path = config_data['data']['path']['root_path']
 
-    relaxer = Relaxer()  # This loads the default pre-trained model
+    slab_cif_paths : List[str] = []
+    adsorbate_cif_paths : List[str] = []
 
+    for index, material in enumerate(mp_data_dicts):    
 
-        # fmax: float = 0.1,
-        # steps: int = 500,
-        # traj_file: str = None,
-        # interval=1,
-        # verbose=False,
+        bare_slab, ads_structure, molecule = prep_catalyst_workflow_structures(
+        catalyst=material['structure'], molecule="CO2", miller_index=[1, 1, 1]
+        )
 
+        folder_name = material['material_id']
+        slab_cif_path , adsorbate_cif_path = create_data( mpid=folder_name, catalyst=bare_slab, adsorbate=ads_structure , root_path=root_path )
+        slab_cif_paths.append(slab_cif_path)
+        adsorbate_cif_paths.append(adsorbate_cif_path)
+    
+    print(slab_cif_path)
+    print(adsorbate_cif_path)
+    upload_files_to_remote(slab_cif_paths, config_data['data']['path']['root_path'], config_data['data']['remote']['root_path'] , config_data['data']['remote']['bucket_name'])
+    upload_files_to_remote(adsorbate_cif_paths, config_data['data']['path']['root_path'], config_data['data']['remote']['root_path'] ,  config_data['data']['remote']['bucket_name'])
+    
+    download_folder_from_remote( config_data['data']['remote']['root_path'] , config_data['data']['path']['root_path'], config_data['data']['remote']['bucket_name'])
+    #download_folder_from_remote( config_data['data']['remote']['root_path'] , config_data['data']['path']['root_path'], config_data['data']['remote']['bucket_name'])
 
-    relax_results = relaxer.relax(structure,fmax=0.1,steps=100, verbose=True,)
-
-    final_structure = relax_results['final_structure']
-    Energy = float(relax_results['trajectory'].energies[-1]/len(structure))
-    return Energy
-
-@workflow
-def catalyst_workflow(
-    mat_composition: str = "ZnO", molecule: str = "CO2", plane: List[int] = [1, 1, 1]
-) -> float:
-    """run adsorption energy calculation 😌 
-    Args:
-        mat_composition (str): composition of catalyst material
-        molecule (str) :  molecule that has to be adsorbed
-        plane (tuple): orientaion of the plane where adsorption has to happen
-
-    Returns:
-        None
-
-    """
-
-    bare_slab, ads_structure, molecule = prep_catalyst_workflow_structures(
-        mat_composition=mat_composition, molecule=molecule, miller_index=plane
-    )
+    return slab_cif_paths , adsorbate_cif_paths
 
 
-    PE_slab = run_relax(ads_structure)
-    PE_adsorbate = run_relax(bare_slab)
-       
-    Adsorption_energy = PE_adsorbate - PE_slab
-    return Adsorption_energy
+@dataclass_json
+@dataclass
+class adsorption_class:
+    slab_relaxed_cif_path: str
+    adsorbate_relaxed_cif_path: str
+    adsorption_energy: float = 0.0
+ 
+import json
 
-catalyst_mat = "ZnO"
-adsorbed_mol = "H2O"
-plane = [1,1,1]
+@task(cache=False, container_image="docker.io/aswanthkrshna/m3gnet:minio", limits=Resources(mem="2Gi", cpu="2")) 
+def pipeline_catalyst(slab_cif_file : str, adsorbate_cif_file : str, minio_path : str, local_path :str ) -> int:
 
 
-val = catalyst_workflow(mat_composition = catalyst_mat, molecule = adsorbed_mol, plane = plane)
+    from models.m3gnet_ff import relax_catalyst
+    from pymatgen.core import Structure
 
 
-'''
+    download_file(minio_path,local_path)
+
+    # Read the config.yaml file
+    with open(local_path, 'r') as file:
+        config = yaml.safe_load(file)
+
+
+    # Perform geometry optimization (relaxation) on the unrelaxed structure
+    slab_energy , slab_file_path_remote = relax_catalyst(cif_file=slab_cif_file, config_model=config['model']['m3gnet']['relaxer'], config_path=config['data'])
+    print(slab_file_path_remote)
+
+
+    adsorbate_energy , adsorbate_file_path_remote = relax_catalyst( cif_file=adsorbate_cif_file, config_model=config['model']['m3gnet']['relaxer'], config_path=config['data'])
+    print(adsorbate_file_path_remote)
+
+    result_json = slab_cif_file.replace("_slab.cif", "_result.json")
+
+    screen_result = adsorption_class(slab_relaxed_cif_path=slab_file_path_remote,
+                                adsorbate_relaxed_cif_path=adsorbate_file_path_remote,
+                                adsorption_energy=float(adsorbate_energy - slab_energy),
+                                )
+    json_data = [asdict(screen_result)]
+
+    with open(result_json, 'w') as json_file:
+        json.dump(json_data, json_file, indent=4)
+
+    
+    file_path_remote = upload_file( result_json, config['data']['path']['root_path'], config['data']['remote']['root_path'] , config['data']['remote']['bucket_name'] )
+    print(file_path_remote)
+
+    return 0
+
+
+
+@dynamic(cache=False, container_image="docker.io/aswanthkrshna/m3gnet:minio") 
+def parallel_workflow_catalyst(slab_cif_paths : List[str],  adsorbate_cif_paths : List[str],    minio_path : str, local_path: str)->int:
+    
+    print(slab_cif_paths)
+    print(adsorbate_cif_paths)
+    num_materials = 900
+
+    # for slab, adsorbate in zip(slab_cif_paths[:num_materials], adsorbate_cif_paths[:num_materials]):
+    
+    #     r = pipeline_catalyst(slab_cif_file = slab, adsorbate_cif_file = adsorbate, minio_path=minio_path, local_path = local_path)
+    #     print(r) 
+
+    r = map_task( partial(pipeline_catalyst,  
+                      minio_path=minio_path, 
+                      local_path = local_path), 
+                metadata=TaskMetadata(retries=1),
+                concurrency=20, 
+                min_success_ratio=0.75, ) (slab_cif_file = slab_cif_paths[:num_materials], adsorbate_cif_file = adsorbate_cif_paths[:num_materials] )
+
+    return 0
+
+
+
+@dynamic(cache=False, container_image="docker.io/aswanthkrshna/m3gnet:minio") 
+def start_catalyst() -> None:
+
+    minio_path = "config_catalyst.yaml"
+    local_path = "catalyst/data/config_catalyst.yaml"
+
+    download_file(object_name=minio_path,file_path=local_path)
+    with open(local_path, 'r') as file:
+        config_data = yaml.safe_load(file)
+
+    print(config_data)
+
+    download_folder_from_remote( config_data['data']['remote']['root_path'] , config_data['data']['path']['root_path'], config_data['data']['remote']['bucket_name'])
+
+    slab_cif_paths , adsorbate_cif_paths = catalyst_cif_paths("catalyst/structures")
+
+    parallel_workflow_catalyst(slab_cif_paths=slab_cif_paths, adsorbate_cif_paths=adsorbate_cif_paths, minio_path=minio_path, local_path = local_path)
+
+
+
+
 
 from data_prep.catalyst_prep import prep_catalyst_workflow_structures
 
 if __name__ == "__main__":
 
-    #start()
-    bare_slab, ads_structure, molecule = prep_catalyst_workflow_structures(
-        mat_composition="ZnO", molecule="CO2", miller_index=[1, 1, 1]
-    )
+    minio_path = "config_catalyst.yaml"
+    local_path = "catalyst/data/config_catalyst.yaml"
 
-    print (bare_slab, ads_structure, molecule)
+    #slab_cif_paths , adsorbate_cif_paths = data_prep_catalyst(minio_path=minio_path , local_path=local_path)
+
+    slab_cif_paths , adsorbate_cif_paths = catalyst_cif_paths("catalyst/structures")
+
+    print(len(slab_cif_paths) , len(adsorbate_cif_paths))
+
+    parallel_workflow_catalyst(slab_cif_paths=slab_cif_paths, adsorbate_cif_paths=adsorbate_cif_paths, minio_path=minio_path, local_path = local_path)
+
+
+
         
 
 

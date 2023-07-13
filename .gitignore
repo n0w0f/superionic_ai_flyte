@@ -27,6 +27,9 @@ temp.py
 #folders
 models/m3gnet_models/*
 
+src/superionic_ai/*
+src/catalyst/*
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
