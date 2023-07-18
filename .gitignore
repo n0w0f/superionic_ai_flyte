@@ -26,9 +26,10 @@ temp.py
 
 #folders
 models/m3gnet_models/*
+src/catalyst
 
-src/superionic_ai/*
-src/catalyst/*
+# src/superionic_ai/*
+# src/catalyst/*
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

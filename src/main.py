@@ -279,7 +279,7 @@ def parallel_workflow_catalyst(slab_cif_paths : List[str],  adsorbate_cif_paths 
     
     print(slab_cif_paths)
     print(adsorbate_cif_paths)
-    num_materials = 900
+    num_materials = 20
 
     # for slab, adsorbate in zip(slab_cif_paths[:num_materials], adsorbate_cif_paths[:num_materials]):
     
